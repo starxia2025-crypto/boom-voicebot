@@ -19,6 +19,7 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - postgres
+      - voice
     environment:
       NODE_ENV: production
       PORT: 4000
@@ -26,11 +27,31 @@ services:
       APP_URL: http://localhost:4000
       CORS_ORIGIN: http://localhost:4000
       DEFAULT_BRANCH: Sucursal Centro
-      VOICE_STT_PROVIDER: browser
-      VOICE_TTS_PROVIDER: browser
+      VOICE_STT_PROVIDER: faster_whisper
+      VOICE_TTS_PROVIDER: piper
+      VOICE_SERVICE_URL: http://voice:8000
+      VOICE_WAKEWORD_ENABLED: "false"
+      VOICE_WAKEWORD_PHRASE: Oye Boom
     ports:
       - "4000:4000"
 
+  voice:
+    build:
+      context: .
+      dockerfile: voice-service/Dockerfile
+    environment:
+      PIPER_MODEL_PATH: /models/es_ES-sharvard-medium.onnx
+      WHISPER_MODEL_SIZE: small
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      WHISPER_LANGUAGE: es
+      WAKEWORD_ENABLED: "false"
+      WAKEWORD_PHRASE: Oye Boom
+      WAKEWORD_MODEL_PATH: /models/oye_boom.tflite
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./voice-service/models:/models
+
 volumes:
   postgres_data:
-

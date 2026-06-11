@@ -1,6 +1,6 @@
 # Boom Asistente
 
-Webapp interna movil para empleados de Muebles Boom. Esta primera version incluye frontend React mobile-first, backend Express con TypeScript, PostgreSQL con Prisma 7, importacion de CSV, historial de conversaciones y una experiencia de voz basada en APIs del navegador con fallback a teclado.
+Webapp interna movil para empleados de Muebles Boom. Esta primera version incluye frontend React mobile-first, backend Express con TypeScript, PostgreSQL con Prisma 7, importacion de CSV, historial de conversaciones y una capa de voz con servicio Python dedicado para Piper, faster-whisper y wake word en primer plano.
 
 ## Lo que ya hace
 
@@ -8,9 +8,10 @@ Webapp interna movil para empleados de Muebles Boom. Esta primera version incluy
 - Chat interno con hilo persistente.
 - Boton grande de voz con estados `Escuchando`, `Procesando`, `Respondiendo` y `Listo`.
 - Modo manos libres: tras responder, vuelve a escuchar hasta que el usuario detenga el micro.
-- STT gratis via `SpeechRecognition` del navegador cuando existe.
-- TTS gratis via `speechSynthesis`.
-- Fallback claro a teclado cuando el movil no soporte voz.
+- STT local-servidor via `faster-whisper`.
+- TTS local-servidor via `Piper`.
+- Wake word opcional en primer plano con `OpenWakeWord`.
+- Fallback claro a teclado cuando el movil no soporte grabacion.
 - Importacion de `muebles.csv` a PostgreSQL.
 - Consulta a productos desde base de datos, no desde el CSV en cada pregunta.
 - Persistencia de conversaciones y logs de auditoria.
@@ -24,6 +25,7 @@ Webapp interna movil para empleados de Muebles Boom. Esta primera version incluy
 
 - `frontend/`: React + Vite + TypeScript.
 - `backend/`: Express + TypeScript + Prisma.
+- `voice-service/`: FastAPI + Piper + faster-whisper + OpenWakeWord.
 - `data/`: CSV real y ejemplo.
 - `docs/`: documentacion de formato de datos.
 
@@ -45,8 +47,11 @@ Parte de `.env.example`:
 - `APP_URL`
 - `CORS_ORIGIN`
 - `DEFAULT_BRANCH`
-- `VOICE_STT_PROVIDER=browser`
-- `VOICE_TTS_PROVIDER=browser`
+- `VOICE_STT_PROVIDER=faster_whisper`
+- `VOICE_TTS_PROVIDER=piper`
+- `VOICE_SERVICE_URL`
+- `VOICE_WAKEWORD_ENABLED`
+- `VOICE_WAKEWORD_PHRASE`
 
 ## Desarrollo local
 
@@ -94,6 +99,10 @@ Backend: `http://localhost:4000`
 
 `muebles.csv` -> `CsvImportService` -> PostgreSQL -> `ProductSearchService` -> `AiService` -> respuesta
 
+Audio:
+
+`frontend` -> `backend /api/voice/*` -> `voice-service` -> `Piper / faster-whisper / OpenWakeWord`
+
 El modelo nunca navega ni busca fuera de la base autorizada. El prompt de sistema vive en:
 
 `backend/src/prompts/systemPrompt.ts`
@@ -113,17 +122,19 @@ Fuente oficial de modelo actual: [OpenAI latest model](https://developers.openai
 2. Crea el proyecto en Easypanel.
 3. Conecta el repo.
 4. Crea un servicio PostgreSQL gestionado.
-5. Configura variables de entorno del `.env.example`.
-6. Despliega usando el `Dockerfile`.
-7. Ejecuta migraciones Prisma.
-8. Importa `data/muebles.csv`.
+5. Crea un servicio `voice` desde `voice-service/Dockerfile`.
+6. Configura variables de entorno del `.env.example` y las del servicio de voz.
+7. Despliega la app Node usando el `Dockerfile`.
+8. Ejecuta migraciones Prisma.
+9. Importa `data/muebles.csv`.
 
 ## Notas de voz
 
-- `SpeechRecognition` funciona mejor en Chrome Android.
-- En iPhone y algunos navegadores puede no estar disponible o ser inconsistente.
-- La app ya muestra mensaje de fallback a teclado cuando falta soporte.
-- Los proveedores OpenAI/Realtime/Whisper quedan preparados como siguiente paso, no como dependencia obligatoria.
+- El frontend ya no depende de `SpeechRecognition`; usa grabacion de microfono y transcripcion en servidor.
+- `Piper` necesita un modelo ONNX y, normalmente, su archivo `.onnx.json`.
+- `faster-whisper` funciona en CPU con `int8`, aunque tardara mas que en GPU.
+- `OpenWakeWord` queda limitado a primer plano. No se considera fiable en otra pestana movil.
+- Para usar la frase `Oye Boom` o la interrupcion con `boom`, necesitas un modelo de wake word en `voice-service/models/`.
 
 ## Estado de esta entrega
 

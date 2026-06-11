@@ -15,6 +15,7 @@ import { conversationsRouter } from "./routes/conversations.js";
 import { healthRouter } from "./routes/health.js";
 import { importRouter } from "./routes/import.js";
 import { productsRouter } from "./routes/products.js";
+import { voiceRouter } from "./routes/voice.js";
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use("/api/products", productsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/conversations", conversationsRouter);
 app.use("/api/config", configRouter);
+app.use("/api/voice", voiceRouter);
 
 const frontendDist = path.resolve(env.rootDir, "frontend", "dist");
 app.use(express.static(frontendDist));

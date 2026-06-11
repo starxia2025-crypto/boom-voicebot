@@ -17,6 +17,12 @@ const envSchema = z.object({
   DEFAULT_BRANCH: z.string().default("Sucursal Centro"),
   VOICE_STT_PROVIDER: z.string().default("browser"),
   VOICE_TTS_PROVIDER: z.string().default("browser"),
+  VOICE_SERVICE_URL: z.string().default("http://localhost:8000"),
+  VOICE_WAKEWORD_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value === "true"),
+  VOICE_WAKEWORD_PHRASE: z.string().default("Oye Boom"),
   MAX_CSV_FILE_SIZE_BYTES: z.coerce.number().default(5 * 1024 * 1024),
   MAX_CHAT_QUESTION_LENGTH: z.coerce.number().default(500),
   ENABLE_TTS: z

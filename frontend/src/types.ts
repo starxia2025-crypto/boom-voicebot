@@ -25,6 +25,8 @@ export type PublicConfig = {
     sttProvider: string;
     ttsProvider: string;
     ttsEnabled: boolean;
+    wakeWordEnabled: boolean;
+    wakeWordPhrase: string;
   };
   llmEnabled: boolean;
 };

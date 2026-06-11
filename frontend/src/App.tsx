@@ -5,13 +5,19 @@ import { ConversationThread } from "./components/ConversationThread";
 import { Header } from "./components/Header";
 import { VoicePanel } from "./components/VoicePanel";
 import { api } from "./services/api";
-import { BrowserSpeechRecognitionService } from "./services/BrowserSpeechRecognitionService";
+import { AudioRecorderService } from "./services/AudioRecorderService";
 import { BrowserTextToSpeechService } from "./services/BrowserTextToSpeechService";
+import { RemoteAudioPlayerService } from "./services/RemoteAudioPlayerService";
 import type { ChatMessage, Conversation, PublicConfig, VoiceSessionState, VoiceStatus } from "./types";
 
-const speechRecognition = new BrowserSpeechRecognitionService();
-const textToSpeech = new BrowserTextToSpeechService();
+const audioRecorder = new AudioRecorderService();
+const remoteAudioPlayer = new RemoteAudioPlayerService();
+const browserTextToSpeech = new BrowserTextToSpeechService();
+
 const VOICE_IDLE_TIMEOUT_MS = 15000;
+const VOICE_SILENCE_DURATION_MS = 1200;
+const VOICE_MIN_DURATION_MS = 900;
+const WAKEWORD_WINDOW_MS = 2000;
 
 const demoMessages: ChatMessage[] = [
   {
@@ -39,8 +45,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [voiceSessionState, setVoiceSessionState] = useState<VoiceSessionState>("inactive");
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>(speechRecognition.isSupported() ? "idle" : "unsupported");
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>(audioRecorder.isSupported() ? "idle" : "unsupported");
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [pageVisible, setPageVisible] = useState(document.visibilityState === "visible");
   const threadRef = useRef<HTMLDivElement | null>(null);
   const voiceSessionStateRef = useRef<VoiceSessionState>("inactive");
   const conversationIdRef = useRef<string | undefined>(undefined);
@@ -57,6 +64,20 @@ export function App() {
   useEffect(() => {
     branchRef.current = branch;
   }, [branch]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === "visible";
+      setPageVisible(visible);
+
+      if (!visible) {
+        audioRecorder.stop();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     void Promise.all([api.getPublicConfig(), api.getConversations()])
@@ -83,11 +104,80 @@ export function App() {
     });
   }, [messages]);
 
+  useEffect(() => {
+    if (!config?.voice.wakeWordEnabled || !pageVisible) {
+      return;
+    }
+
+    if (voiceSessionState !== "inactive" && voiceSessionState !== "speaking") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const runWakeWordLoop = async () => {
+      while (!cancelled) {
+        const currentState = voiceSessionStateRef.current;
+        if (document.visibilityState !== "visible" || (currentState !== "inactive" && currentState !== "speaking")) {
+          return;
+        }
+
+        try {
+          const wakeWordAudio = await audioRecorder.recordWindow(WAKEWORD_WINDOW_MS);
+          if (cancelled) {
+            return;
+          }
+
+          const detection = await api.detectWakeWord(wakeWordAudio);
+          if (!detection.enabled || cancelled) {
+            await sleep(500);
+            continue;
+          }
+
+          if (!detection.detected) {
+            await sleep(350);
+            continue;
+          }
+
+          if (voiceSessionStateRef.current === "speaking") {
+            remoteAudioPlayer.stop();
+            browserTextToSpeech.stop();
+            setError(`He detenido la respuesta al escuchar "boom". Puedes seguir hablando.`);
+            if (isVoiceSessionActive()) {
+              setSessionState("listening");
+              void runVoiceLoop();
+            }
+            return;
+          }
+
+          if (voiceSessionStateRef.current === "inactive") {
+            await startVoiceSession(false);
+            return;
+          }
+        } catch (wakeWordError) {
+          const message = wakeWordError instanceof Error ? wakeWordError.message : "No se pudo evaluar la palabra de activacion.";
+          if (message === "Recording cancelled" || cancelled) {
+            return;
+          }
+
+          await sleep(650);
+        }
+      }
+    };
+
+    void runWakeWordLoop();
+
+    return () => {
+      cancelled = true;
+      audioRecorder.stop();
+    };
+  }, [config?.voice.wakeWordEnabled, pageVisible, voiceSessionState]);
+
   const voiceModeActive = voiceSessionState !== "inactive";
 
   const helperText = useMemo(() => {
     if (voiceStatus === "unsupported") {
-      return "La transcripcion de voz no esta disponible en este dispositivo. Usa el teclado o configura un proveedor alternativo.";
+      return "La grabacion de audio no esta disponible en este dispositivo. Usa el teclado o revisa permisos del microfono.";
     }
 
     if (error) {
@@ -98,20 +188,24 @@ export function App() {
       case "starting":
         return "Estoy iniciando la conversacion. Enseguida te escucho.";
       case "listening":
-        return "Te escucho. Pulsa el boton verde cuando quieras terminar la conversacion.";
+        return config?.voice.wakeWordEnabled
+          ? `Te escucho. Puedes decir "${config.voice.wakeWordPhrase}" para activar o interrumpir la voz.`
+          : "Te escucho. Pulsa el boton verde cuando quieras terminar la conversacion.";
       case "processing":
-        return "Estoy revisando tu consulta para responderte.";
+        return "Estoy transcribiendo y revisando tu consulta para responderte.";
       case "speaking":
-        return "Te estoy respondiendo y volvere a escucharte despues.";
+        return config?.voice.wakeWordEnabled
+          ? `Te estoy respondiendo. Di "boom" si quieres que me calle y seguir con otra consulta.`
+          : "Te estoy respondiendo y volvere a escucharte despues.";
       case "stopping":
         return "Cerrando la conversacion de voz.";
       default:
         return "Solo responde con datos cargados en la base interna. Sin fuentes externas.";
     }
-  }, [error, voiceSessionState, voiceStatus]);
+  }, [config?.voice.wakeWordEnabled, config?.voice.wakeWordPhrase, error, voiceSessionState, voiceStatus]);
 
   function mapSessionStateToVoiceStatus(sessionState: VoiceSessionState): VoiceStatus {
-    if (!speechRecognition.isSupported()) {
+    if (!audioRecorder.isSupported()) {
       return "unsupported";
     }
 
@@ -160,8 +254,9 @@ export function App() {
     }
 
     setSessionState("stopping");
-    textToSpeech.stop();
-    speechRecognition.stop();
+    remoteAudioPlayer.stop();
+    browserTextToSpeech.stop();
+    audioRecorder.stop();
     setLoading(false);
     setSessionState("inactive");
 
@@ -170,12 +265,42 @@ export function App() {
     }
   }
 
-  async function speakText(text: string) {
-    if (!textToSpeech.isSupported()) {
+  async function playBotAudio(text: string, forcePlayback = false) {
+    const ttsProvider = config?.voice.ttsProvider ?? "browser";
+    const shouldSpeak = forcePlayback || ttsEnabled;
+
+    if (!shouldSpeak) {
       return;
     }
 
-    await textToSpeech.speak(text);
+    if (ttsProvider === "piper") {
+      const audio = await api.synthesizeSpeech(text);
+      if (!isVoiceSessionActive() && !forcePlayback) {
+        return;
+      }
+
+      await remoteAudioPlayer.play(audio);
+      return;
+    }
+
+    await browserTextToSpeech.speak(text);
+  }
+
+  async function transcribeVoiceInput() {
+    const sttProvider = config?.voice.sttProvider ?? "faster_whisper";
+
+    if (sttProvider !== "faster_whisper") {
+      throw new Error("El proveedor de transcripcion configurado no esta soportado en esta version.");
+    }
+
+    const audio = await audioRecorder.recordUtterance({
+      maxDurationMs: VOICE_IDLE_TIMEOUT_MS,
+      silenceDurationMs: VOICE_SILENCE_DURATION_MS,
+      minDurationMs: VOICE_MIN_DURATION_MS,
+      silenceThreshold: 0.018,
+    });
+    const transcription = await api.transcribeAudio(audio);
+    return transcription.text.trim();
   }
 
   async function submitMessage(message: string, inputType: "text" | "voice") {
@@ -207,7 +332,7 @@ export function App() {
 
       if (inputType === "voice" && isVoiceSessionActive()) {
         setSessionState("speaking");
-        await speakText(response.answer);
+        await playBotAudio(response.answer);
       }
     } catch (requestError) {
       const requestMessage =
@@ -228,25 +353,23 @@ export function App() {
       setSessionState("listening");
 
       try {
-        const result = await speechRecognition.listen(VOICE_IDLE_TIMEOUT_MS);
-
+        const transcript = await transcribeVoiceInput();
         if (!isVoiceSessionActive()) {
           return;
         }
 
-        if (!result.transcript.trim()) {
+        if (!transcript) {
           continue;
         }
 
-        await submitMessage(result.transcript, "voice");
-
+        await submitMessage(transcript, "voice");
         if (!isVoiceSessionActive()) {
           return;
         }
       } catch (voiceError) {
         const message = voiceError instanceof Error ? voiceError.message : "No se pudo capturar la voz.";
 
-        if (message === "Reconocimiento cancelado.") {
+        if (message === "Recording cancelled") {
           stopVoiceSession();
           return;
         }
@@ -262,10 +385,10 @@ export function App() {
     }
   }
 
-  async function startVoiceSession() {
-    if (!speechRecognition.isSupported()) {
+  async function startVoiceSession(withGreeting = true) {
+    if (!audioRecorder.isSupported()) {
       setVoiceStatus("unsupported");
-      setError("La transcripcion de voz no esta disponible en este dispositivo. Usa el teclado o configura un proveedor alternativo.");
+      setError("La grabacion de audio no esta disponible en este dispositivo. Usa el teclado o revisa permisos del microfono.");
       return;
     }
 
@@ -275,12 +398,14 @@ export function App() {
 
     setError(null);
     setSessionState("starting");
-    appendLocalAssistantMessage("Hola?");
 
-    try {
-      await speakText("Hola?");
-    } catch {
-      // Ignore TTS greeting failures and continue to listening.
+    if (withGreeting) {
+      appendLocalAssistantMessage("Hola?");
+      try {
+        await playBotAudio("Hola?", true);
+      } catch {
+        // Continue to listening even if the greeting audio fails.
+      }
     }
 
     if (!isVoiceSessionActive()) {
@@ -296,25 +421,18 @@ export function App() {
       return;
     }
 
-    await startVoiceSession();
+    await startVoiceSession(true);
   }
 
   return (
     <main className="app-shell">
       <div className="phone-frame">
-        <Header branch={branch} />
+        <Header />
         <div className="app-body">
           <div className="thread-scroll" ref={threadRef}>
             <ConversationThread messages={messages} />
           </div>
           <div className="app-bottom-dock">
-            <VoicePanel
-              voiceStatus={voiceStatus}
-              active={voiceModeActive}
-              sessionState={voiceSessionState}
-              onToggleVoice={handleVoiceToggle}
-            />
-            <p className="helper-text">{helperText}</p>
             <Composer
               value={input}
               onChange={setInput}
@@ -323,16 +441,36 @@ export function App() {
               ttsEnabled={ttsEnabled}
               disabled={loading && !voiceModeActive}
             />
+            <VoicePanel
+              voiceStatus={voiceStatus}
+              active={voiceModeActive}
+              sessionState={voiceSessionState}
+              onToggleVoice={handleVoiceToggle}
+            />
+            <p className="helper-text">{helperText}</p>
           </div>
         </div>
       </div>
       <footer className="app-footer">
         <span className="footer-lock" aria-hidden="true">
-          lock
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M8 10V8a4 4 0 1 1 8 0v2m-9 0h10v8H7z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
-        boom.empresa.com
+        Solo informacion de la base de datos interna
         {config?.llmEnabled ? null : <small>Modo local sin OpenAI</small>}
       </footer>
     </main>
   );
+}
+
+function sleep(durationMs: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, durationMs));
 }

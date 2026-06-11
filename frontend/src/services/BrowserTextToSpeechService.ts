@@ -1,4 +1,6 @@
 export class BrowserTextToSpeechService {
+  private currentResolver: (() => void) | null = null;
+
   isSupported() {
     return "speechSynthesis" in window;
   }
@@ -9,6 +11,7 @@ export class BrowserTextToSpeechService {
     }
 
     return new Promise<void>((resolve) => {
+      this.currentResolver = resolve;
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
@@ -23,8 +26,14 @@ export class BrowserTextToSpeechService {
 
       utterance.rate = 1;
       utterance.pitch = 1;
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
+      utterance.onend = () => {
+        this.currentResolver = null;
+        resolve();
+      };
+      utterance.onerror = () => {
+        this.currentResolver = null;
+        resolve();
+      };
       window.speechSynthesis.speak(utterance);
     });
   }
@@ -32,6 +41,8 @@ export class BrowserTextToSpeechService {
   stop() {
     if (this.isSupported()) {
       window.speechSynthesis.cancel();
+      this.currentResolver?.();
+      this.currentResolver = null;
     }
   }
 }

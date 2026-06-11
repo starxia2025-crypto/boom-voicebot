@@ -17,8 +17,33 @@ export function Composer({ value, onChange, onSubmit, onToggleTts, ttsEnabled, d
 
   return (
     <form className="composer" onSubmit={handleSubmit}>
-      <button className={`tts-toggle ${ttsEnabled ? "tts-on" : ""}`} onClick={onToggleTts} type="button">
-        Voz
+      <button
+        className={`tts-toggle ${ttsEnabled ? "tts-on" : ""}`}
+        onClick={onToggleTts}
+        type="button"
+        aria-label={ttsEnabled ? "Desactivar voz" : "Activar voz"}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {ttsEnabled ? (
+            <path
+              d="M5 9v6h4l5 4V5l-5 4H5Zm11.5-1.5a5 5 0 0 1 0 9"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ) : (
+            <path
+              d="M5 9v6h4l5 4V5l-5 4H5Zm10 2-6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </svg>
       </button>
       <input
         value={value}
