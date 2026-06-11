@@ -25,6 +25,7 @@ body,
 
 body {
   min-height: 100vh;
+  overflow: hidden;
 }
 
 button,
@@ -40,17 +41,16 @@ button {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  padding: 1rem 0.75rem 1.5rem;
+  padding: 0;
 }
 
 .phone-frame {
   width: min(100%, 28rem);
-  min-height: calc(100vh - 3.5rem);
+  height: calc(100vh - 2.9rem);
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(205, 205, 205, 0.8);
-  border-radius: 2rem;
+  border: 1px solid rgba(205, 205, 205, 0.52);
+  border-radius: 0;
   overflow: hidden;
   box-shadow:
     0 24px 70px rgba(163, 26, 19, 0.12),
@@ -63,6 +63,9 @@ button {
   background: linear-gradient(180deg, #ed0f0f 0%, #dc0000 100%);
   color: white;
   padding: 1.2rem 1rem 1.1rem;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .brand-row {
@@ -158,14 +161,14 @@ button {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 1rem 0.85rem 0.85rem;
+  min-height: 0;
 }
 
 .thread-scroll {
   flex: 1;
-  min-height: 18rem;
+  min-height: 0;
   overflow-y: auto;
-  padding-right: 0.15rem;
+  padding: 1rem 0.85rem 20.75rem;
 }
 
 .thread-panel {
@@ -270,15 +273,29 @@ button {
   border: 6px solid white;
   margin-top: 0.95rem;
   color: white;
-  background: radial-gradient(circle at top, #ff352f 0%, #ec0a0a 80%);
   box-shadow:
     0 0 0 8px rgba(255, 214, 10, 0.26),
     0 16px 48px rgba(239, 14, 14, 0.26);
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
 .voice-button svg {
   width: 3rem;
   height: 3rem;
+}
+
+.voice-button-idle {
+  background: radial-gradient(circle at top, #ff352f 0%, #ec0a0a 80%);
+}
+
+.voice-button-active {
+  background: radial-gradient(circle at top, #31db67 0%, #149d43 82%);
+  box-shadow:
+    0 0 0 8px rgba(49, 219, 103, 0.22),
+    0 16px 48px rgba(20, 157, 67, 0.28);
 }
 
 .voice-listening {
@@ -309,6 +326,17 @@ button {
   color: #6d6d6d;
   font-size: 0.92rem;
   min-height: 2.4rem;
+}
+
+.app-bottom-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding: 0.4rem 0.85rem 0.85rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.92) 6%, rgba(255, 255, 255, 0.98) 18%, #ffffff 100%);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.04);
 }
 
 .composer {
@@ -367,7 +395,7 @@ button {
   align-items: center;
   gap: 0.45rem;
   justify-content: center;
-  margin-top: 0.7rem;
+  min-height: 2.9rem;
   color: #666;
   font-size: 0.96rem;
 }
@@ -387,29 +415,31 @@ button {
 @keyframes pulse {
   0% {
     box-shadow:
-      0 0 0 8px rgba(255, 214, 10, 0.24),
-      0 16px 48px rgba(239, 14, 14, 0.22);
+      0 0 0 8px rgba(49, 219, 103, 0.22),
+      0 16px 48px rgba(20, 157, 67, 0.22);
   }
 
   50% {
     box-shadow:
-      0 0 0 16px rgba(255, 214, 10, 0.15),
-      0 18px 54px rgba(239, 14, 14, 0.3);
+      0 0 0 16px rgba(49, 219, 103, 0.14),
+      0 18px 54px rgba(20, 157, 67, 0.3);
   }
 
   100% {
     box-shadow:
-      0 0 0 8px rgba(255, 214, 10, 0.24),
-      0 16px 48px rgba(239, 14, 14, 0.22);
+      0 0 0 8px rgba(49, 219, 103, 0.22),
+      0 16px 48px rgba(20, 157, 67, 0.22);
   }
 }
 
 @media (min-width: 768px) {
   .app-shell {
-    padding: 1.5rem;
+    padding: 1.25rem 1.25rem 0;
   }
 
   .phone-frame {
-    min-height: 52rem;
+    height: calc(100vh - 4.25rem);
+    max-height: 52rem;
+    border-radius: 2rem;
   }
 }

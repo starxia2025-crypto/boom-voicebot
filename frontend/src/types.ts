@@ -1,6 +1,7 @@
 export type ChatRole = "user" | "assistant" | "system";
 export type InputType = "text" | "voice";
 export type VoiceStatus = "idle" | "listening" | "processing" | "speaking" | "unsupported";
+export type VoiceSessionState = "inactive" | "starting" | "listening" | "processing" | "speaking" | "stopping";
 
 export type ChatMessage = {
   id: string;
@@ -33,4 +34,3 @@ export type ChatResponse = {
   hadEnoughData: boolean;
   conversation: Conversation;
 };
-

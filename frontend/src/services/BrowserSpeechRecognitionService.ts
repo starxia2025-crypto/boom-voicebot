@@ -31,12 +31,13 @@ declare global {
 export class BrowserSpeechRecognitionService {
   private recognition: BrowserSpeechRecognition | null = null;
   private cancelled = false;
+  private finished = false;
 
   isSupported() {
     return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
 
-  listen(): Promise<{ transcript: string; confidence?: number }> {
+  listen(timeoutMs = 15000): Promise<{ transcript: string; confidence?: number }> {
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognitionCtor) {
@@ -49,35 +50,50 @@ export class BrowserSpeechRecognitionService {
 
     return new Promise((resolve, reject) => {
       this.cancelled = false;
+      this.finished = false;
       this.recognition = new SpeechRecognitionCtor();
       this.recognition.continuous = false;
       this.recognition.lang = "es-ES";
       this.recognition.interimResults = false;
       this.recognition.maxAlternatives = 1;
+      const timeoutId = window.setTimeout(() => {
+        this.finish(() => reject(new Error("Tiempo de espera agotado. He cerrado el micro por inactividad.")));
+        this.recognition?.stop();
+      }, timeoutMs);
 
       this.recognition.onresult = (event: BrowserRecognitionEvent) => {
         const result = event.results[0]?.[0];
-        resolve({
-          transcript: result?.transcript?.trim() ?? "",
-          confidence: result?.confidence,
-        });
+        this.finish(() =>
+          resolve({
+            transcript: result?.transcript?.trim() ?? "",
+            confidence: result?.confidence,
+          }),
+        );
+        window.clearTimeout(timeoutId);
       };
 
       this.recognition.onerror = (event) => {
+        window.clearTimeout(timeoutId);
         if (this.cancelled || event?.error === "aborted") {
-          reject(new Error("Reconocimiento cancelado."));
+          this.finish(() => reject(new Error("Reconocimiento cancelado.")));
           return;
         }
 
-        reject(
-          new Error(
-            "La transcripcion de voz no esta disponible en este dispositivo. Usa el teclado o configura un proveedor alternativo.",
+        this.finish(() =>
+          reject(
+            new Error(
+              "La transcripcion de voz no esta disponible en este dispositivo. Revisa permisos del microfono o usa el teclado.",
+            ),
           ),
         );
       };
 
       this.recognition.onend = () => {
+        window.clearTimeout(timeoutId);
         this.recognition = null;
+        if (!this.finished && !this.cancelled) {
+          this.finish(() => reject(new Error("No he podido escucharte. Revisa permisos del microfono o prueba otra vez.")));
+        }
       };
 
       this.recognition.start();
@@ -87,5 +103,14 @@ export class BrowserSpeechRecognitionService {
   stop() {
     this.cancelled = true;
     this.recognition?.stop();
+  }
+
+  private finish(callback: () => void) {
+    if (this.finished) {
+      return;
+    }
+
+    this.finished = true;
+    callback();
   }
 }
