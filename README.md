@@ -52,6 +52,7 @@ Parte de `.env.example`:
 - `VOICE_SERVICE_URL`
 - `VOICE_WAKEWORD_ENABLED`
 - `VOICE_WAKEWORD_PHRASE`
+- `WHISPER_HOTWORDS`
 
 ## Desarrollo local
 

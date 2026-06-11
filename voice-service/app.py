@@ -24,6 +24,10 @@ class Settings:
     whisper_device = os.getenv("WHISPER_DEVICE", "cpu")
     whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
     whisper_language = os.getenv("WHISPER_LANGUAGE", "es")
+    whisper_hotwords = os.getenv(
+        "WHISPER_HOTWORDS",
+        "boom, muebles boom, stock, precio, sucursal, sofa, sillon, colchon, mesa",
+    )
     wakeword_enabled = os.getenv("WAKEWORD_ENABLED", "false").lower() == "true"
     wakeword_phrase = os.getenv("WAKEWORD_PHRASE", "Oye Boom")
     wakeword_model_path = os.getenv("WAKEWORD_MODEL_PATH", "")
@@ -148,9 +152,19 @@ async def stt(request: Request):
         model = get_whisper_model()
         segments, info = model.transcribe(
             audio_path,
+            task="transcribe",
             language=settings.whisper_language,
             vad_filter=True,
             beam_size=5,
+            best_of=5,
+            temperature=0,
+            condition_on_previous_text=False,
+            compression_ratio_threshold=2.4,
+            no_speech_threshold=0.45,
+            log_prob_threshold=-1.0,
+            hallucination_silence_threshold=0.8,
+            hotwords=settings.whisper_hotwords,
+            vad_parameters={"min_silence_duration_ms": 350, "speech_pad_ms": 120},
         )
         text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
         return {

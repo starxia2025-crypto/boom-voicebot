@@ -399,12 +399,22 @@ export function App() {
     setError(null);
     setSessionState("starting");
 
+    try {
+      await remoteAudioPlayer.unlock();
+    } catch {
+      // Continue and surface playback failures only if they actually happen.
+    }
+
     if (withGreeting) {
       appendLocalAssistantMessage("Hola?");
       try {
         await playBotAudio("Hola?", true);
-      } catch {
-        // Continue to listening even if the greeting audio fails.
+      } catch (playbackError) {
+        setError(
+          playbackError instanceof Error
+            ? playbackError.message
+            : "No he podido reproducir el saludo de voz. Revisa el volumen y vuelve a tocar el boton.",
+        );
       }
     }
 

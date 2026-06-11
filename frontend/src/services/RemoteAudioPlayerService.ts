@@ -1,41 +1,70 @@
 export class RemoteAudioPlayerService {
-  private audio: HTMLAudioElement | null = null;
-  private objectUrl: string | null = null;
+  private audioContext: AudioContext | null = null;
+  private currentSource: AudioBufferSourceNode | null = null;
   private currentResolver: (() => void) | null = null;
+  private unlocked = false;
+
+  isSupported() {
+    return typeof window.AudioContext !== "undefined";
+  }
+
+  async unlock() {
+    if (!this.isSupported()) {
+      return;
+    }
+
+    if (!this.audioContext) {
+      this.audioContext = new window.AudioContext();
+    }
+
+    if (this.audioContext.state === "suspended") {
+      await this.audioContext.resume();
+    }
+
+    this.unlocked = this.audioContext.state === "running";
+  }
 
   async play(audioBlob: Blob) {
+    if (!this.isSupported()) {
+      throw new Error("La reproduccion de audio no esta disponible en este dispositivo.");
+    }
+
+    await this.unlock();
+    if (!this.audioContext || !this.unlocked) {
+      throw new Error("El navegador ha bloqueado la reproduccion de audio. Toca de nuevo el boton para habilitar el sonido.");
+    }
+
     this.stop();
 
-    this.objectUrl = URL.createObjectURL(audioBlob);
-    this.audio = new Audio(this.objectUrl);
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer.slice(0));
 
     return new Promise<void>((resolve) => {
-      this.currentResolver = resolve;
-
-      if (!this.audio) {
-        this.currentResolver = null;
+      if (!this.audioContext) {
         resolve();
         return;
       }
 
-      this.audio.onended = () => {
+      this.currentResolver = resolve;
+      this.currentSource = this.audioContext.createBufferSource();
+      this.currentSource.buffer = audioBuffer;
+      this.currentSource.connect(this.audioContext.destination);
+      this.currentSource.onended = () => {
         this.finish(resolve);
       };
-
-      this.audio.onerror = () => {
-        this.finish(resolve);
-      };
-
-      void this.audio.play().catch(() => {
-        this.finish(resolve);
-      });
+      this.currentSource.start(0);
     });
   }
 
   stop() {
-    if (this.audio) {
-      this.audio.pause();
-      this.audio.currentTime = 0;
+    if (this.currentSource) {
+      this.currentSource.onended = null;
+      try {
+        this.currentSource.stop();
+      } catch {
+        // Ignore stop errors if the source already finished.
+      }
+      this.currentSource.disconnect();
     }
 
     this.currentResolver?.();
@@ -48,12 +77,7 @@ export class RemoteAudioPlayerService {
   }
 
   private cleanup() {
-    this.audio = null;
+    this.currentSource = null;
     this.currentResolver = null;
-
-    if (this.objectUrl) {
-      URL.revokeObjectURL(this.objectUrl);
-      this.objectUrl = null;
-    }
   }
 }
