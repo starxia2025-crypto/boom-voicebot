@@ -37,11 +37,17 @@ export function App() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [voiceModeActive, setVoiceModeActive] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>(
     speechRecognition.isSupported() ? "idle" : "unsupported",
   );
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const voiceModeRef = useRef(false);
+
+  useEffect(() => {
+    voiceModeRef.current = voiceModeActive;
+  }, [voiceModeActive]);
 
   useEffect(() => {
     void Promise.all([api.getPublicConfig(), api.getConversations()])
@@ -77,8 +83,12 @@ export function App() {
       return error;
     }
 
+    if (voiceModeActive) {
+      return "Modo manos libres activo. Toca el micro otra vez para detener la escucha continua.";
+    }
+
     return "Solo responde con datos cargados en la base interna. Sin fuentes externas.";
-  }, [error, voiceStatus]);
+  }, [error, voiceModeActive, voiceStatus]);
 
   async function submitMessage(message: string, inputType: "text" | "voice") {
     const trimmed = message.trim();
@@ -104,10 +114,15 @@ export function App() {
         setInput("");
       });
 
-      if (ttsEnabled && textToSpeech.isSupported()) {
+      if (inputType === "voice" && ttsEnabled && textToSpeech.isSupported()) {
         setVoiceStatus("speaking");
-        textToSpeech.speak(response.answer);
-        window.setTimeout(() => setVoiceStatus(speechRecognition.isSupported() ? "idle" : "unsupported"), 1200);
+        await textToSpeech.speak(response.answer);
+      }
+
+      if (inputType === "voice" && voiceModeRef.current) {
+        window.setTimeout(() => {
+          void beginVoiceCycle();
+        }, 250);
       } else {
         setVoiceStatus(speechRecognition.isSupported() ? "idle" : "unsupported");
       }
@@ -117,9 +132,51 @@ export function App() {
           ? `Modo demo activo. ${requestError.message}`
           : "Modo demo activo. No se pudo enviar la consulta.",
       );
+      setVoiceModeActive(false);
       setVoiceStatus(speechRecognition.isSupported() ? "idle" : "unsupported");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function beginVoiceCycle() {
+    if (!speechRecognition.isSupported() || !voiceModeRef.current) {
+      setVoiceStatus(speechRecognition.isSupported() ? "idle" : "unsupported");
+      return;
+    }
+
+    if (loading) {
+      return;
+    }
+
+    setError(null);
+    setVoiceStatus("listening");
+
+    try {
+      const result = await speechRecognition.listen();
+      if (!voiceModeRef.current) {
+        setVoiceStatus("idle");
+        return;
+      }
+
+      if (!result.transcript.trim()) {
+        window.setTimeout(() => {
+          void beginVoiceCycle();
+        }, 150);
+        return;
+      }
+
+      await submitMessage(result.transcript, "voice");
+    } catch (voiceError) {
+      const message = voiceError instanceof Error ? voiceError.message : "No se pudo capturar la voz.";
+      if (message === "Reconocimiento cancelado.") {
+        setVoiceStatus("idle");
+        return;
+      }
+
+      setError(message);
+      setVoiceModeActive(false);
+      setVoiceStatus("idle");
     }
   }
 
@@ -129,16 +186,16 @@ export function App() {
       return;
     }
 
-    setError(null);
-    setVoiceStatus("listening");
-
-    try {
-      const result = await speechRecognition.listen();
-      await submitMessage(result.transcript, "voice");
-    } catch (voiceError) {
-      setError(voiceError instanceof Error ? voiceError.message : "No se pudo capturar la voz.");
+    if (voiceModeRef.current) {
+      setVoiceModeActive(false);
+      textToSpeech.stop();
+      speechRecognition.stop();
       setVoiceStatus("idle");
+      return;
     }
+
+    setVoiceModeActive(true);
+    await beginVoiceCycle();
   }
 
   return (
@@ -149,7 +206,12 @@ export function App() {
           <div className="thread-scroll" ref={threadRef}>
             <ConversationThread messages={messages} />
           </div>
-          <VoicePanel voiceStatus={voiceStatus} onToggleVoice={handleVoiceToggle} disabled={loading} />
+          <VoicePanel
+            voiceStatus={voiceStatus}
+            active={voiceModeActive}
+            onToggleVoice={handleVoiceToggle}
+            disabled={loading}
+          />
           <p className="helper-text">{helperText}</p>
           <Composer
             value={input}

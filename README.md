@@ -7,6 +7,7 @@ Webapp interna movil para empleados de Muebles Boom. Esta primera version incluy
 - UI movil inspirada en la referencia visual.
 - Chat interno con hilo persistente.
 - Boton grande de voz con estados `Escuchando`, `Procesando`, `Respondiendo` y `Listo`.
+- Modo manos libres: tras responder, vuelve a escuchar hasta que el usuario detenga el micro.
 - STT gratis via `SpeechRecognition` del navegador cuando existe.
 - TTS gratis via `speechSynthesis`.
 - Fallback claro a teclado cuando el movil no soporte voz.
@@ -15,6 +16,8 @@ Webapp interna movil para empleados de Muebles Boom. Esta primera version incluy
 - Persistencia de conversaciones y logs de auditoria.
 - Uso opcional de OpenAI solo desde backend.
 - Sin scraping, sin buscadores y sin fuentes externas en la respuesta.
+- Prompt de sistema interno para saludo, tono de companero y peticion de aclaraciones.
+- Aclaracion automatica cuando hay varias coincidencias de producto.
 - Dockerfile y `docker-compose.yml` listos para despliegue.
 
 ## Estructura
@@ -38,6 +41,7 @@ Parte de `.env.example`:
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
+- `OPENAI_REASONING_EFFORT`
 - `APP_URL`
 - `CORS_ORIGIN`
 - `DEFAULT_BRANCH`
@@ -90,9 +94,18 @@ Backend: `http://localhost:4000`
 
 `muebles.csv` -> `CsvImportService` -> PostgreSQL -> `ProductSearchService` -> `AiService` -> respuesta
 
-El modelo nunca navega ni busca fuera de la base autorizada. Si no hay datos suficientes, responde:
+El modelo nunca navega ni busca fuera de la base autorizada. El prompt de sistema vive en:
 
-`No tengo informacion suficiente en la base de datos para responder eso.`
+`backend/src/prompts/systemPrompt.ts`
+
+Si no hay datos suficientes, responde de forma honesta y orienta al empleado a probar con una referencia exacta o un nombre mas concreto.
+
+Modelo recomendado para este caso:
+
+- `OPENAI_MODEL=gpt-5.5`
+- `OPENAI_REASONING_EFFORT=medium`
+
+Fuente oficial de modelo actual: [OpenAI latest model](https://developers.openai.com/api/docs/guides/latest-model)
 
 ## Despliegue en Easypanel
 

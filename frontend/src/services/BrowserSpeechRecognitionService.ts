@@ -8,11 +8,12 @@ type BrowserRecognitionEvent = {
 };
 
 type BrowserSpeechRecognition = {
+  continuous?: boolean;
   lang: string;
   interimResults: boolean;
   maxAlternatives: number;
   onresult: ((event: BrowserRecognitionEvent) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event?: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -29,6 +30,7 @@ declare global {
 
 export class BrowserSpeechRecognitionService {
   private recognition: BrowserSpeechRecognition | null = null;
+  private cancelled = false;
 
   isSupported() {
     return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -46,7 +48,9 @@ export class BrowserSpeechRecognitionService {
     }
 
     return new Promise((resolve, reject) => {
+      this.cancelled = false;
       this.recognition = new SpeechRecognitionCtor();
+      this.recognition.continuous = false;
       this.recognition.lang = "es-ES";
       this.recognition.interimResults = false;
       this.recognition.maxAlternatives = 1;
@@ -59,7 +63,12 @@ export class BrowserSpeechRecognitionService {
         });
       };
 
-      this.recognition.onerror = () => {
+      this.recognition.onerror = (event) => {
+        if (this.cancelled || event?.error === "aborted") {
+          reject(new Error("Reconocimiento cancelado."));
+          return;
+        }
+
         reject(
           new Error(
             "La transcripcion de voz no esta disponible en este dispositivo. Usa el teclado o configura un proveedor alternativo.",
@@ -76,6 +85,7 @@ export class BrowserSpeechRecognitionService {
   }
 
   stop() {
+    this.cancelled = true;
     this.recognition?.stop();
   }
 }

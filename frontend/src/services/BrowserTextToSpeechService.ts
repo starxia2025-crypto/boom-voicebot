@@ -5,27 +5,28 @@ export class BrowserTextToSpeechService {
 
   speak(text: string) {
     if (!this.isSupported()) {
-      return;
+      return Promise.resolve();
     }
 
-    window.speechSynthesis.cancel();
+    return new Promise<void>((resolve) => {
+      window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    const spanishVoice = window
-      .speechSynthesis
-      .getVoices()
-      .find((voice) => voice.lang.toLowerCase().startsWith("es"));
+      const utterance = new SpeechSynthesisUtterance(text);
+      const spanishVoice = window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase().startsWith("es"));
 
-    if (spanishVoice) {
-      utterance.voice = spanishVoice;
-      utterance.lang = spanishVoice.lang;
-    } else {
-      utterance.lang = "es-ES";
-    }
+      if (spanishVoice) {
+        utterance.voice = spanishVoice;
+        utterance.lang = spanishVoice.lang;
+      } else {
+        utterance.lang = "es-ES";
+      }
 
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
   }
 
   stop() {
@@ -34,4 +35,3 @@ export class BrowserTextToSpeechService {
     }
   }
 }
-

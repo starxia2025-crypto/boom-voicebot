@@ -2,6 +2,7 @@ import type { VoiceStatus } from "../types";
 
 type VoicePanelProps = {
   voiceStatus: VoiceStatus;
+  active: boolean;
   onToggleVoice: () => void;
   disabled?: boolean;
 };
@@ -14,7 +15,7 @@ const labelMap: Record<VoiceStatus, string> = {
   unsupported: "Listo",
 };
 
-export function VoicePanel({ voiceStatus, onToggleVoice, disabled }: VoicePanelProps) {
+export function VoicePanel({ voiceStatus, active, onToggleVoice, disabled }: VoicePanelProps) {
   return (
     <section className="voice-panel">
       <div className="voice-status-row">
@@ -35,7 +36,7 @@ export function VoicePanel({ voiceStatus, onToggleVoice, disabled }: VoicePanelP
         </svg>
       </button>
       <div className="voice-caption">{labelMap[voiceStatus]}</div>
-      <p className="voice-subtitle">Toca para hablar</p>
+      <p className="voice-subtitle">{active ? "Toca para detener" : "Toca para hablar"}</p>
     </section>
   );
 }

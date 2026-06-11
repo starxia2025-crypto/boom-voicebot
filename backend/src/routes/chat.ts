@@ -4,15 +4,15 @@ import { z } from "zod";
 import { env } from "../config.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { AiService } from "../services/AiService.js";
+import { ConversationalResponseService } from "../services/ConversationalResponseService.js";
 import { ConversationService } from "../services/ConversationService.js";
 import { ProductSearchService } from "../services/ProductSearchService.js";
-
-const NO_DATA_RESPONSE = "No tengo informacion suficiente en la base de datos para responder eso.";
 
 export const chatRouter = Router();
 const aiService = new AiService();
 const productSearchService = new ProductSearchService();
 const conversationService = new ConversationService();
+const conversationalResponseService = new ConversationalResponseService();
 
 chatRouter.post(
   "/",
@@ -26,9 +26,18 @@ chatRouter.post(
 
     const body = schema.parse(request.body);
     const normalizedQuery = body.message.toLowerCase().trim();
+    const context = await conversationService.getContext(body.conversationId);
     const matches = await productSearchService.search(normalizedQuery, body.branch);
-    const hadEnoughData = matches.length > 0;
-    const answer = hadEnoughData ? await aiService.answerQuestion(body.message, matches) : NO_DATA_RESPONSE;
+    const reply = conversationalResponseService.resolve(body.message, matches, context);
+    const hadEnoughData = reply.hadEnoughData;
+    const answer =
+      reply.type === "product_answer" && reply.matchedProducts.length > 0
+        ? await aiService.answerQuestion({
+            question: body.message,
+            products: reply.matchedProducts,
+            recentMessages: context.recentMessages,
+          })
+        : reply.answer ?? "No veo esa informacion en la base interna ahora mismo.";
 
     const conversation = await conversationService.createOrAppend({
       conversationId: body.conversationId,
@@ -37,16 +46,15 @@ chatRouter.post(
       assistantMessage: answer,
       inputType: body.inputType,
       normalizedQuery,
-      matchedProducts: matches,
+      matchedProducts: reply.matchedProducts,
       hadEnoughData,
     });
 
     response.json({
       conversation,
       answer,
-      matchedProducts: matches,
+      matchedProducts: reply.matchedProducts,
       hadEnoughData,
     });
   }),
 );
-

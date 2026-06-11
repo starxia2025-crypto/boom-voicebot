@@ -30,6 +30,58 @@ export class ConversationService {
     });
   }
 
+  async getContext(conversationId?: string) {
+    if (!conversationId) {
+      return {
+        recentMessages: [] as Array<{
+          role: "user" | "assistant";
+          content: string;
+        }>,
+        lastMatchedProducts: [] as ProductMatch[],
+      };
+    }
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 6,
+        },
+        auditLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!conversation) {
+      return {
+        recentMessages: [] as Array<{
+          role: "user" | "assistant";
+          content: string;
+        }>,
+        lastMatchedProducts: [] as ProductMatch[],
+      };
+    }
+
+    const lastAuditLog = conversation.auditLogs[0];
+    const lastMatchedProducts = Array.isArray(lastAuditLog?.matchedProducts)
+      ? (lastAuditLog.matchedProducts as ProductMatch[])
+      : [];
+
+    return {
+      recentMessages: conversation.messages
+        .slice()
+        .reverse()
+        .map((message) => ({
+          role: (message.role === MessageRole.user ? "user" : "assistant") as "user" | "assistant",
+          content: message.content,
+        })),
+      lastMatchedProducts,
+    };
+  }
+
   async createOrAppend(params: {
     conversationId?: string;
     branch: string;

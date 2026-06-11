@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 
 import { env } from "../config.js";
+import { BOOM_ASSISTANT_SYSTEM_PROMPT } from "../prompts/systemPrompt.js";
 import { ProductMatch } from "../types.js";
 
 const NO_DATA_RESPONSE = "No tengo informacion suficiente en la base de datos para responder eso.";
@@ -8,7 +9,13 @@ const NO_DATA_RESPONSE = "No tengo informacion suficiente en la base de datos pa
 export class AiService {
   private readonly client = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 
-  async answerQuestion(question: string, products: ProductMatch[]): Promise<string> {
+  async answerQuestion(params: {
+    question: string;
+    products: ProductMatch[];
+    recentMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+  }): Promise<string> {
+    const { products, question, recentMessages = [] } = params;
+
     if (products.length === 0) {
       return NO_DATA_RESPONSE;
     }
@@ -17,18 +24,39 @@ export class AiService {
       return this.buildDeterministicAnswer(products);
     }
 
-    const prompt = [
-      "Eres Boom Asistente, un bot interno de Muebles Boom.",
-      "Responde solo con los datos proporcionados.",
-      "No inventes precios, stock, sucursales ni disponibilidad.",
-      "Si los datos no alcanzan, responde exactamente: No tengo informacion suficiente en la base de datos para responder eso.",
-      `Pregunta del empleado: ${question}`,
-      `Datos disponibles: ${JSON.stringify(products)}`,
-    ].join("\n");
-
     const response = await this.client.responses.create({
       model: env.OPENAI_MODEL,
-      input: prompt,
+      reasoning: { effort: env.OPENAI_REASONING_EFFORT },
+      instructions: BOOM_ASSISTANT_SYSTEM_PROMPT,
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                "Reglas operativas de esta respuesta:",
+                "- Responde solo con los datos internos adjuntos.",
+                `- Si los datos no alcanzan, responde exactamente: ${NO_DATA_RESPONSE}`,
+                "- Si hay varias coincidencias, pide aclaracion de forma breve y concreta.",
+              ].join("\n"),
+            },
+          ],
+        },
+        ...recentMessages.slice(-4).map((message) => ({
+          role: message.role,
+          content: [{ type: "input_text" as const, text: message.content }],
+        })),
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Pregunta actual del empleado: ${question}\nDatos internos disponibles: ${JSON.stringify(products)}`,
+            },
+          ],
+        },
+      ],
     });
 
     return response.output_text?.trim() || NO_DATA_RESPONSE;
@@ -45,4 +73,3 @@ export class AiService {
     return lines.join(" ");
   }
 }
-
