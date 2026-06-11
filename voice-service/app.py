@@ -1,25 +1,15 @@
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from faster_whisper import WhisperModel
 from openwakeword.model import Model as WakeWordModel
-from pydantic import BaseModel
-
-
-class TtsRequest(BaseModel):
-    text: str
 
 
 class Settings:
     port = int(os.getenv("VOICE_SERVICE_PORT", "8000"))
-    piper_model_path = os.getenv("PIPER_MODEL_PATH", "/models/es_ES-sharvard-medium.onnx")
-    piper_config_path = os.getenv("PIPER_CONFIG_PATH", "")
-    piper_speaker_id = os.getenv("PIPER_SPEAKER_ID", "")
-    piper_binary = os.getenv("PIPER_BINARY", "piper")
     whisper_model_size = os.getenv("WHISPER_MODEL_SIZE", "small")
     whisper_device = os.getenv("WHISPER_DEVICE", "cpu")
     whisper_compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
@@ -70,16 +60,6 @@ def get_wakeword_model() -> WakeWordModel | None:
 
     return wakeword_model
 
-
-def ensure_piper_model():
-    model_path = Path(settings.piper_model_path)
-    if not model_path.exists():
-        raise HTTPException(
-            status_code=503,
-            detail="No se ha encontrado el modelo de Piper configurado en el servicio de voz.",
-        )
-
-
 @app.get("/health")
 def health():
     return {
@@ -87,55 +67,6 @@ def health():
         "wakewordEnabled": settings.wakeword_enabled,
         "wakewordPhrase": settings.wakeword_phrase,
     }
-
-
-@app.post("/tts")
-def tts(payload: TtsRequest):
-    ensure_piper_model()
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temporary_file:
-        output_path = temporary_file.name
-
-    command = [
-        settings.piper_binary,
-        "--model",
-        settings.piper_model_path,
-        "--output_file",
-        output_path,
-    ]
-
-    config_path = Path(settings.piper_config_path) if settings.piper_config_path else None
-    if config_path and config_path.exists():
-        command.extend(["--config", str(config_path)])
-
-    if settings.piper_speaker_id:
-        command.extend(["--speaker", settings.piper_speaker_id])
-
-    try:
-        process = subprocess.run(
-            command,
-            input=payload.text.encode("utf-8"),
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
-    except FileNotFoundError as error:
-        raise HTTPException(status_code=503, detail="No se encuentra el binario de Piper en el servicio.") from error
-    except subprocess.TimeoutExpired as error:
-        raise HTTPException(status_code=504, detail="Piper ha tardado demasiado en generar el audio.") from error
-
-    if process.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=process.stderr.decode("utf-8", errors="ignore") or "Piper no ha podido sintetizar el audio.",
-        )
-
-    try:
-        audio = Path(output_path).read_bytes()
-    finally:
-        Path(output_path).unlink(missing_ok=True)
-
-    return Response(audio, media_type="audio/wav")
 
 
 @app.post("/stt")

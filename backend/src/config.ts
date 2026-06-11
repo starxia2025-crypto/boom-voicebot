@@ -14,6 +14,8 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-5.5"),
   OPENAI_REASONING_EFFORT: z.enum(["minimal", "low", "medium", "high"]).default("medium"),
+  OPENAI_TTS_MODEL: z.string().default("gpt-4o-mini-tts"),
+  OPENAI_TTS_VOICE: z.string().default("marin"),
   DEFAULT_BRANCH: z.string().default("Sucursal Centro"),
   VOICE_STT_PROVIDER: z.string().default("browser"),
   VOICE_TTS_PROVIDER: z.string().default("browser"),

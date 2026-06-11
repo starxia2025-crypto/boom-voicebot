@@ -1,3 +1,5 @@
+import OpenAI from "openai";
+
 import { env } from "../config.js";
 
 type VoiceJsonError = {
@@ -6,23 +8,23 @@ type VoiceJsonError = {
 };
 
 export class VoiceGatewayService {
-  async synthesize(text: string) {
-    const response = await fetch(`${env.VOICE_SERVICE_URL}/tts`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-      signal: AbortSignal.timeout(60_000),
-    });
+  private readonly openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 
-    if (!response.ok) {
-      throw new Error(await this.readError(response));
+  async synthesize(text: string) {
+    if (!this.openaiClient) {
+      throw new Error("OPENAI_API_KEY no esta configurada para la sintesis de voz.");
     }
+
+    const response = await this.openaiClient.audio.speech.create({
+      model: env.OPENAI_TTS_MODEL,
+      voice: env.OPENAI_TTS_VOICE,
+      input: text,
+      response_format: "wav",
+    });
 
     return {
       audio: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get("content-type") ?? "audio/wav",
+      contentType: "audio/wav",
     };
   }
 

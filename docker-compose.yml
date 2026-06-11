@@ -27,8 +27,10 @@ services:
       APP_URL: http://localhost:4000
       CORS_ORIGIN: http://localhost:4000
       DEFAULT_BRANCH: Sucursal Centro
+      OPENAI_TTS_MODEL: gpt-4o-mini-tts
+      OPENAI_TTS_VOICE: marin
       VOICE_STT_PROVIDER: faster_whisper
-      VOICE_TTS_PROVIDER: piper
+      VOICE_TTS_PROVIDER: openai
       VOICE_SERVICE_URL: http://voice:8000
       VOICE_WAKEWORD_ENABLED: "false"
       VOICE_WAKEWORD_PHRASE: Oye Boom
@@ -40,18 +42,16 @@ services:
       context: .
       dockerfile: voice-service/Dockerfile
     environment:
-      PIPER_MODEL_PATH: /models/es_ES-sharvard-medium.onnx
       WHISPER_MODEL_SIZE: small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_LANGUAGE: es
+      WHISPER_HOTWORDS: boom, muebles boom, stock, precio, sucursal, sofa, sillon, colchon, mesa
       WAKEWORD_ENABLED: "false"
       WAKEWORD_PHRASE: Oye Boom
       WAKEWORD_MODEL_PATH: /models/oye_boom.tflite
     ports:
       - "8000:8000"
-    volumes:
-      - ./voice-service/models:/models
 
 volumes:
   postgres_data:

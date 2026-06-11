@@ -1,6 +1,6 @@
 # Boom Asistente
 
-Webapp interna movil para empleados de Muebles Boom. Esta primera version incluye frontend React mobile-first, backend Express con TypeScript, PostgreSQL con Prisma 7, importacion de CSV, historial de conversaciones y una capa de voz con servicio Python dedicado para Piper, faster-whisper y wake word en primer plano.
+Webapp interna movil para empleados de Muebles Boom. Esta primera version incluye frontend React mobile-first, backend Express con TypeScript, PostgreSQL con Prisma 7, importacion de CSV, historial de conversaciones y una capa de voz con OpenAI TTS para salida, faster-whisper para STT y wake word opcional en primer plano.
 
 ## Lo que ya hace
 
@@ -9,7 +9,7 @@ Webapp interna movil para empleados de Muebles Boom. Esta primera version incluy
 - Boton grande de voz con estados `Escuchando`, `Procesando`, `Respondiendo` y `Listo`.
 - Modo manos libres: tras responder, vuelve a escuchar hasta que el usuario detenga el micro.
 - STT local-servidor via `faster-whisper`.
-- TTS local-servidor via `Piper`.
+- TTS via `OpenAI gpt-4o-mini-tts`.
 - Wake word opcional en primer plano con `OpenWakeWord`.
 - Fallback claro a teclado cuando el movil no soporte grabacion.
 - Importacion de `muebles.csv` a PostgreSQL.
@@ -44,11 +44,13 @@ Parte de `.env.example`:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_REASONING_EFFORT`
+- `OPENAI_TTS_MODEL`
+- `OPENAI_TTS_VOICE`
 - `APP_URL`
 - `CORS_ORIGIN`
 - `DEFAULT_BRANCH`
 - `VOICE_STT_PROVIDER=faster_whisper`
-- `VOICE_TTS_PROVIDER=piper`
+- `VOICE_TTS_PROVIDER=openai`
 - `VOICE_SERVICE_URL`
 - `VOICE_WAKEWORD_ENABLED`
 - `VOICE_WAKEWORD_PHRASE`
@@ -102,7 +104,9 @@ Backend: `http://localhost:4000`
 
 Audio:
 
-`frontend` -> `backend /api/voice/*` -> `voice-service` -> `Piper / faster-whisper / OpenWakeWord`
+`frontend` -> `backend /api/voice/tts` -> `OpenAI TTS`
+
+`frontend` -> `backend /api/voice/stt|wakeword` -> `voice-service` -> `faster-whisper / OpenWakeWord`
 
 El modelo nunca navega ni busca fuera de la base autorizada. El prompt de sistema vive en:
 
@@ -132,7 +136,7 @@ Fuente oficial de modelo actual: [OpenAI latest model](https://developers.openai
 ## Notas de voz
 
 - El frontend ya no depende de `SpeechRecognition`; usa grabacion de microfono y transcripcion en servidor.
-- `Piper` necesita un modelo ONNX y, normalmente, su archivo `.onnx.json`.
+- La voz de salida usa OpenAI TTS. Requiere `OPENAI_API_KEY` valida y las variables `OPENAI_TTS_MODEL` y `OPENAI_TTS_VOICE`.
 - `faster-whisper` funciona en CPU con `int8`, aunque tardara mas que en GPU.
 - `OpenWakeWord` queda limitado a primer plano. No se considera fiable en otra pestana movil.
 - Para usar la frase `Oye Boom` o la interrupcion con `boom`, necesitas un modelo de wake word en `voice-service/models/`.
