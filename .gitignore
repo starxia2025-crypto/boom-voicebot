@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.env.local
+.env.*.local
+coverage
+.DS_Store
+Thumbs.db
+backend/node_modules
+frontend/node_modules
+backend/dist
+frontend/dist
+frontend-qa-mobile.png

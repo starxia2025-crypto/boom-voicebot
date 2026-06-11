@@ -1,0 +1,42 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "description": "Boom Asistente backend",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "npx tsx watch src/server.ts",
+    "build": "npx tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "db:generate": "npx prisma generate --config prisma.config.ts",
+    "db:migrate": "npx prisma migrate deploy --config prisma.config.ts",
+    "db:migrate:dev": "npx prisma migrate dev --config prisma.config.ts",
+    "import:csv": "npx tsx src/scripts/importCsv.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "cors": "^2.8.6",
+    "csv-parse": "^6.2.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "morgan": "^1.11.0",
+    "openai": "^6.42.0",
+    "pg": "^8.16.3",
+    "prisma": "^7.8.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.12.3",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

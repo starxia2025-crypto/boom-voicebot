@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  nombre        String
+  categoria     String?
+  descripcion   String?
+  material      String?
+  color         String?
+  medidas       String?
+  precioEur     Decimal? @map("precio_eur") @db.Decimal(10, 2)
+  stock         Int?
+  sucursal      String?
+  ubicacion     String?
+  actualizadoEn DateTime @default(now()) @map("actualizado_en")
+  sourceRow     Json?    @map("source_row")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model Conversation {
+  id         String              @id @default(cuid())
+  branch     String
+  userId     String?             @map("user_id")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  messages   ConversationMessage[]
+  auditLogs  ConversationAuditLog[]
+
+  @@map("conversations")
+}
+
+model ConversationMessage {
+  id                   String       @id @default(cuid())
+  conversationId       String       @map("conversation_id")
+  role                 MessageRole
+  content              String
+  inputType            InputType    @map("input_type")
+  transcriptConfidence Float?       @map("transcript_confidence")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  conversation         Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_messages")
+}
+
+model ConversationAuditLog {
+  id                 String       @id @default(cuid())
+  conversationId     String       @map("conversation_id")
+  originalQuery      String       @map("original_query")
+  normalizedQuery    String       @map("normalized_query")
+  matchedProducts    Json         @map("matched_products")
+  generatedResponse  String       @map("generated_response")
+  hadEnoughData      Boolean      @map("had_enough_data")
+  errorMessage       String?      @map("error_message")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_audit_logs")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  roleId    String?  @map("role_id")
+  branchId  String?  @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  role      Role?    @relation(fields: [roleId], references: [id])
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+
+  @@map("users")
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  users     User[]
+
+  @@map("roles")
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  users     User[]
+
+  @@map("branches")
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+enum InputType {
+  text
+  voice
+}
